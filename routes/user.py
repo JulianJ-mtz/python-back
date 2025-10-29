@@ -15,7 +15,9 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 @router.get("/", response_model=List[UserResponse])
 def get_users(db: DbSession):
-    users = db.execute(select(db_models.User)).scalars().all()
+    users = (
+        db.execute(select(db_models.User).order_by(db_models.User.id)).scalars().all()
+    )
     return users
 
 
@@ -58,3 +60,19 @@ def delete_user(user_id: int, db: DbSession):
     db.delete(user)
     db.commit()
     return None
+
+
+@router.put("/{user_id}", response_model=UserResponse)
+def update_user(user_id: int, user_update: UserCreate, db: DbSession):
+    user = db.execute(
+        select(db_models.User).where(db_models.User.id == user_id)
+    ).scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    user.name = user_update.name
+    user.mail = user_update.mail
+    db.commit()
+    db.refresh(user)
+    return user
