@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [tool.poetry]
-packages = [{include = "python-back", from = "src"}]
+packages = [{include = "src"}]
 
 [tool.pyright]
 typeCheckingMode = "standard"
