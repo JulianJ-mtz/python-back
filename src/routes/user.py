@@ -15,9 +15,9 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 @router.get("/", response_model=List[UserResponse])
 def get_users(db: DbSession):
-    users = (
-        db.execute(select(db_models.User).order_by(db_models.User.id)).scalars().all()
-    )
+    users = db.execute(
+        select(db_models.User).order_by(db_models.User.id)
+    ).scalars().all()
     return users
 
 

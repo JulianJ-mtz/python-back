@@ -1,15 +1,16 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 import db_models
 from db import engine
 
 from routes import user
+from auth import require_basic_auth
 
-app = FastAPI(title="python api")
+app = FastAPI(title="python api", dependencies=[Depends(require_basic_auth)])
 
 db_models.Base.metadata.create_all(bind=engine)
 
-
 app.include_router(user.router)
+
 
 @app.get("/")
 def root():
