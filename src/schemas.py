@@ -13,3 +13,14 @@ class UserResponse(BaseModel):
 
     class Config:
         from_attributes: bool = True
+
+
+class UserRegister(UserCreate):
+    name: str
+    mail: EmailStr
+    password: str
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"

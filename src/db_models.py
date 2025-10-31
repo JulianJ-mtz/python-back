@@ -14,3 +14,4 @@ class User(Base):
     mail: Mapped[str] = mapped_column(
         String(255), unique=True, nullable=False, index=True
     )
+    password: Mapped[str] = mapped_column(String(255), nullable=False)

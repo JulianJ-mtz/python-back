@@ -1,7 +1,7 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI
+
 from . import db_models
 from .db import engine
-
 from .routes import user
 
 app = FastAPI(title="python api")

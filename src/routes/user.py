@@ -1,13 +1,12 @@
-from fastapi import APIRouter, HTTPException
-from sqlalchemy.orm import Session
+from typing import Annotated, List
+
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
-from typing import List, Annotated
-from fastapi import Depends
+from sqlalchemy.orm import Session
 
 from .. import db_models
-from ..schemas import UserCreate, UserResponse
 from ..db import get_db
-
+from ..schemas import UserCreate, UserResponse
 
 DbSession = Annotated[Session, Depends(get_db)]
 router = APIRouter(prefix="/users", tags=["users"])
@@ -15,9 +14,9 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 @router.get("/", response_model=List[UserResponse])
 def get_users(db: DbSession):
-    users = db.execute(
-        select(db_models.User).order_by(db_models.User.id)
-    ).scalars().all()
+    users = (
+        db.execute(select(db_models.User).order_by(db_models.User.id)).scalars().all()
+    )
     return users
 
 

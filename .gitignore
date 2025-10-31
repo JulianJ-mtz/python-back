@@ -1,4 +1,6 @@
 poetry.lock
 __pycache__
 env
+.env
+.idea
 .DS_Store
