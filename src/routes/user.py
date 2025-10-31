@@ -4,9 +4,9 @@ from sqlalchemy import select
 from typing import List, Annotated
 from fastapi import Depends
 
-import db_models
-from schemas import UserCreate, UserResponse
-from db import get_db
+from .. import db_models
+from ..schemas import UserCreate, UserResponse
+from ..db import get_db
 
 
 DbSession = Annotated[Session, Depends(get_db)]

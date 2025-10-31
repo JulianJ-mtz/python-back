@@ -1,11 +1,10 @@
 from fastapi import FastAPI, Depends
-import db_models
-from db import engine
+from . import db_models
+from .db import engine
 
-from routes import user
-from auth import require_basic_auth
+from .routes import user
 
-app = FastAPI(title="python api", dependencies=[Depends(require_basic_auth)])
+app = FastAPI(title="python api")
 
 db_models.Base.metadata.create_all(bind=engine)
 
