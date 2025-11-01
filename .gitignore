@@ -4,3 +4,4 @@ env
 .env
 .idea
 .DS_Store
+token.json
