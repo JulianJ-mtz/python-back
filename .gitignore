@@ -1,7 +1,15 @@
 poetry.lock
 __pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
 env
 .env
 .idea
 .DS_Store
 token.json
+
+# Alembic cache
+alembic/__pycache__/
+alembic/versions/__pycache__/

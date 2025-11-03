@@ -14,9 +14,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from sqlalchemy.util.typing import Annotated
 
+from ..database import get_db
+from ..models import User
 from ..schemas import Token, TokenRefresh, UserLogin, UserRegister, UserResponse
-from .. import db_models
-from ..db import get_db
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 DbSession = Annotated[Session, Depends(get_db)]
@@ -126,7 +126,7 @@ def decode_refresh_token(token: str) -> dict:
 def get_current_user(
     db: DbSession,
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(bearer_scheme)],
-) -> db_models.User:
+) -> User:
     token = credentials.credentials
     payload = decode_access_token(token)
     email = payload.get("sub")
@@ -138,7 +138,7 @@ def get_current_user(
         )
 
     user = db.execute(
-        select(db_models.User).where(db_models.User.mail == email)
+        select(User).where(User.mail == email)
     ).scalar_one_or_none()
 
     if not user:
@@ -154,12 +154,12 @@ def get_current_user(
 @router.post("/register", response_model=Token, status_code=201)
 def register(user: UserRegister, db: DbSession):
     existing_user = db.execute(
-        select(db_models.User).where(db_models.User.mail == user.mail)
+        select(User).where(User.mail == user.mail)
     ).scalar_one_or_none()
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    register_user = db_models.User(
+    register_user = User(
         name=user.name, mail=user.mail, password=hash_password(user.password)
     )
 
@@ -176,7 +176,7 @@ def register(user: UserRegister, db: DbSession):
 @router.post("/login", response_model=Token)
 def login(user_data: UserLogin, db: DbSession):
     user = db.execute(
-        select(db_models.User).where(db_models.User.mail == user_data.mail)
+        select(User).where(User.mail == user_data.mail)
     ).scalar_one_or_none()
     if not user or not verify_password(user_data.password, user.password):
         raise HTTPException(
@@ -203,7 +203,7 @@ def refresh_token(token_data: TokenRefresh, db: DbSession):
         )
 
     user = db.execute(
-        select(db_models.User).where(db_models.User.mail == email)
+        select(User).where(User.mail == email)
     ).scalar_one_or_none()
 
     if not user:
@@ -221,6 +221,6 @@ def refresh_token(token_data: TokenRefresh, db: DbSession):
 
 @router.get("/me", response_model=UserResponse)
 def read_current_user(
-    current_user: Annotated[db_models.User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(get_current_user)],
 ):
     return current_user

@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import db_models
-from ..db import get_db
+from ..database import get_db
+from ..models import User
 from ..schemas import UserCreate, UserResponse
 
 DbSession = Annotated[Session, Depends(get_db)]
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/users", tags=["users"])
 @router.get("/", response_model=List[UserResponse])
 def get_users(db: DbSession):
     users = (
-        db.execute(select(db_models.User).order_by(db_models.User.id)).scalars().all()
+        db.execute(select(User).order_by(User.id)).scalars().all()
     )
     return users
 
@@ -23,7 +23,7 @@ def get_users(db: DbSession):
 @router.get("/{user_id}", response_model=UserResponse)
 def get_user(user_id: int, db: DbSession):
     user = db.execute(
-        select(db_models.User).where(db_models.User.id == user_id)
+        select(User).where(User.id == user_id)
     ).scalar_one_or_none()
 
     if not user:
@@ -34,13 +34,13 @@ def get_user(user_id: int, db: DbSession):
 @router.post("/", response_model=UserResponse, status_code=201)
 def create_user(user: UserCreate, db: DbSession):
     existing_user = db.execute(
-        select(db_models.User).where(db_models.User.mail == user.mail)
+        select(User).where(User.mail == user.mail)
     ).scalar_one_or_none()
 
     if existing_user:
         raise HTTPException(status_code=400, detail="Email ya registrado")
 
-    db_user = db_models.User(name=user.name, mail=user.mail)
+    db_user = User(name=user.name, mail=user.mail)
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
@@ -50,7 +50,7 @@ def create_user(user: UserCreate, db: DbSession):
 @router.delete("/{user_id}", status_code=204)
 def delete_user(user_id: int, db: DbSession):
     user = db.execute(
-        select(db_models.User).where(db_models.User.id == user_id)
+        select(User).where(User.id == user_id)
     ).scalar_one_or_none()
 
     if not user:
@@ -64,7 +64,7 @@ def delete_user(user_id: int, db: DbSession):
 @router.put("/{user_id}", response_model=UserResponse)
 def update_user(user_id: int, user_update: UserCreate, db: DbSession):
     user = db.execute(
-        select(db_models.User).where(db_models.User.id == user_id)
+        select(User).where(User.id == user_id)
     ).scalar_one_or_none()
 
     if not user:

@@ -2,27 +2,32 @@
 name = "python-back"
 version = "0.1.0"
 description = ""
-authors = [
-    {name = "jjmr",email = "josejulian.mtzr@gmail.com"}
-]
+authors = [{ name = "jjmr", email = "josejulian.mtzr@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "fastapi[standard] (>=0.120.1,<0.121.0)",
-    "pydantic (>=2.12.3,<3.0.0)",
-    "sqlalchemy (>=2.0.44,<3.0.0)",
-    "psycopg2 (>=2.9.11,<3.0.0)",
-    "python-dotenv (>=1.2.1,<2.0.0)",
-    "pyjwt (>=2.10.1,<3.0.0)",
-    "passlib (==1.7.4)",
-    "bcrypt (==4.0.1)",
+  "fastapi[standard] (>=0.120.1,<0.121.0)",
+  "pydantic (>=2.12.3,<3.0.0)",
+  "sqlalchemy (>=2.0.44,<3.0.0)",
+  "psycopg2 (>=2.9.11,<3.0.0)",
+  "python-dotenv (>=1.2.1,<2.0.0)",
+  "pyjwt (>=2.10.1,<3.0.0)",
+  "passlib (==1.7.4)",
+  "bcrypt (==4.0.1)",
+  "alembic (>=1.17.1,<2.0.0)",
 ]
 
 [tool.poetry]
-packages = [{include = "src"}]
+packages = [{ include = "src" }]
 
 [tool.pyright]
 typeCheckingMode = "standard"
+
+[tool.ruff]
+src = ["src"]
+
+[tool.ruff.lint]
+ignore = ["E402"]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
