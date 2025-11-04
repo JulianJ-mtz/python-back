@@ -26,7 +26,8 @@ load_dotenv()
 SECRET_KEY_ENV = os.getenv("SECRET_KEY")
 ALGORITHM_ENV = os.getenv("ALGORITHM")
 ACCESS_TOKEN_EXPIRE_MINUTES_ENV = float(os.getenv("MINUTES_TOKEN_EXPIRE", 60))
-REFRESH_TOKEN_EXPIRE_DAYS_ENV = float(os.getenv("DAYS_REFRESH_TOKEN_EXPIRE", 7))
+REFRESH_TOKEN_EXPIRE_DAYS_ENV = float(
+    os.getenv("DAYS_REFRESH_TOKEN_EXPIRE", 7))
 
 if not SECRET_KEY_ENV:
     raise ValueError("SECRET_KEY environment variable is not set")
@@ -137,9 +138,8 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    user = db.execute(
-        select(User).where(User.mail == email)
-    ).scalar_one_or_none()
+    user = db.execute(select(User).where(
+        User.email == email)).scalar_one_or_none()
 
     if not user:
         raise HTTPException(
@@ -153,40 +153,36 @@ def get_current_user(
 
 @router.post("/register", response_model=Token, status_code=201)
 def register(user: UserRegister, db: DbSession):
-    existing_user = db.execute(
-        select(User).where(User.mail == user.mail)
-    ).scalar_one_or_none()
+    existing_user = db.execute(select(User).where(
+        User.email == user.email)).scalar_one_or_none()
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
     register_user = User(
-        name=user.name, mail=user.mail, password=hash_password(user.password)
-    )
+        email=user.email, hashed_password=hash_password(user.password))
 
     db.add(register_user)
     db.commit()
     db.refresh(register_user)
 
-    access_token = create_access_token(subject=register_user.mail)
-    refresh_token = create_refresh_token(subject=register_user.mail)
+    access_token = create_access_token(subject=register_user.email)
+    refresh_token = create_refresh_token(subject=register_user.email)
 
     return Token(access_token=access_token, refresh_token=refresh_token)
 
 
 @router.post("/login", response_model=Token)
 def login(user_data: UserLogin, db: DbSession):
-    user = db.execute(
-        select(User).where(User.mail == user_data.mail)
-    ).scalar_one_or_none()
-    if not user or not verify_password(user_data.password, user.password):
+    user = db.execute(select(User).where(
+        User.email == user_data.email)).scalar_one_or_none()
+    if not user or not verify_password(user_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
-    access_token = create_access_token(subject=user.mail)
-    refresh_token = create_refresh_token(subject=user.mail)
+    access_token = create_access_token(subject=user.email)
+    refresh_token = create_refresh_token(subject=user.email)
     return Token(access_token=access_token, refresh_token=refresh_token)
 
 
@@ -202,9 +198,8 @@ def refresh_token(token_data: TokenRefresh, db: DbSession):
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    user = db.execute(
-        select(User).where(User.mail == email)
-    ).scalar_one_or_none()
+    user = db.execute(select(User).where(
+        User.email == email)).scalar_one_or_none()
 
     if not user:
         raise HTTPException(

@@ -10,7 +10,7 @@ project_root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(project_root))
 
 # Import all models so Alembic can detect them for autogenerate
-from src.app.models import Base, User  # noqa: E402
+from src.app.models import *  # noqa: E402 
 
 # Import db configuration to get the database URL
 from src.app.database import db_url  # noqa: E402
@@ -63,5 +63,3 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
-
-

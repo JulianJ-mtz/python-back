@@ -2,23 +2,20 @@ from pydantic import BaseModel, EmailStr
 
 
 class UserCreate(BaseModel):
-    name: str
-    mail: EmailStr
+    email: EmailStr
+    password: str
 
 
 class UserResponse(BaseModel):
     id: int
-    name: str
-    mail: str
+    email: EmailStr
 
     class Config:
         from_attributes: bool = True
 
 
 class UserRegister(UserCreate):
-    name: str
-    mail: EmailStr
-    password: str
+    pass
 
 
 class Token(BaseModel):
@@ -32,5 +29,5 @@ class TokenRefresh(BaseModel):
 
 
 class UserLogin(BaseModel):
-    mail: EmailStr
+    email: EmailStr
     password: str
