@@ -1,4 +1,5 @@
 """Database configuration and session management."""
+
 import os
 
 from dotenv import load_dotenv
@@ -27,4 +28,3 @@ def get_db():
         yield db
     finally:
         db.close()
-

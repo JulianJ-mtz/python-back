@@ -13,4 +13,4 @@ token.json
 # Alembic cache
 alembic/__pycache__/
 alembic/versions/__pycache__/
-pyrightconfig
+pyrightconfig.json

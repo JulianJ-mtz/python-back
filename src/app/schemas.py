@@ -1,3 +1,4 @@
+import uuid
 from pydantic import BaseModel, EmailStr
 
 
@@ -7,7 +8,7 @@ class UserCreate(BaseModel):
 
 
 class UserResponse(BaseModel):
-    id: int
+    id: uuid.UUID
     email: EmailStr
 
     class Config:
@@ -31,3 +32,7 @@ class TokenRefresh(BaseModel):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
+
+class ScoreResponse(BaseModel):
+    point: float

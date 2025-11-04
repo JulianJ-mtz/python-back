@@ -1,9 +1,10 @@
 import os
 from datetime import datetime, timedelta
+import logging
 
 import jwt
 from dotenv import load_dotenv
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 from fastapi.params import Depends
 from fastapi.security import (
     HTTPAuthorizationCredentials,
@@ -15,19 +16,27 @@ from sqlalchemy.orm import Session
 from sqlalchemy.util.typing import Annotated
 
 from ..database import get_db
+from ..dependencies import get_current_active_user
 from ..models import User
 from ..schemas import Token, TokenRefresh, UserLogin, UserRegister, UserResponse
+from ..utils.custom_exceptions import (
+    TokenExpiredException,
+    InvalidTokenException,
+    UserNotFoundException,
+    InvalidCredentialsException,
+    DuplicateResourceException,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 DbSession = Annotated[Session, Depends(get_db)]
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
 SECRET_KEY_ENV = os.getenv("SECRET_KEY")
 ALGORITHM_ENV = os.getenv("ALGORITHM")
 ACCESS_TOKEN_EXPIRE_MINUTES_ENV = float(os.getenv("MINUTES_TOKEN_EXPIRE", 60))
-REFRESH_TOKEN_EXPIRE_DAYS_ENV = float(
-    os.getenv("DAYS_REFRESH_TOKEN_EXPIRE", 7))
+REFRESH_TOKEN_EXPIRE_DAYS_ENV = float(os.getenv("DAYS_REFRESH_TOKEN_EXPIRE", 7))
 
 if not SECRET_KEY_ENV:
     raise ValueError("SECRET_KEY environment variable is not set")
@@ -80,86 +89,94 @@ def decode_access_token(token: str) -> dict:
     try:
         payload = jwt.decode(token, SECRET_KEY_ENV, algorithms=ALGORITHM_ENV)
         if payload.get("type") != "access":
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token type",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+            raise InvalidTokenException(detail="Invalid token type")
         return payload
     except jwt.ExpiredSignatureError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has expired",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise TokenExpiredException()
     except jwt.InvalidTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise InvalidTokenException()
 
 
 def decode_refresh_token(token: str) -> dict:
     try:
         payload = jwt.decode(token, SECRET_KEY_ENV, algorithms=ALGORITHM_ENV)
         if payload.get("type") != "refresh":
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token type",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+            raise InvalidTokenException(detail="Invalid token type")
         return payload
     except jwt.ExpiredSignatureError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Refresh token has expired. Please login again",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise TokenExpiredException()
     except jwt.InvalidTokenError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid refresh token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise InvalidTokenException(detail="Invalid refresh token")
 
 
-def get_current_user(
-    db: DbSession,
-    credentials: Annotated[HTTPAuthorizationCredentials, Depends(bearer_scheme)],
+async def get_current_user(
+        db: DbSession,
+        credentials: Annotated[HTTPAuthorizationCredentials, Depends(bearer_scheme)],
 ) -> User:
+    """Get the current user from the token.
+
+    This function is used by the auth middleware to validate the token
+    and get the user from the database.
+
+    Args:
+        db: Database session
+        credentials: HTTP Authorization credentials containing the JWT token
+
+    Returns:
+        User: The authenticated user
+
+    Raises:
+        AuthenticationException: If the token is invalid or the user is not found
+    """
+    logger.info("Starting get_current_user")
+
+    if not credentials or not hasattr(credentials, "credentials"):
+        logger.error("No credentials provided")
+        raise InvalidTokenException(detail="Missing credentials")
+
     token = credentials.credentials
+    if not token:
+        logger.error("Empty token provided")
+        raise InvalidTokenException(detail="Empty token")
+
+    logger.info(f"Token received: {token[:10]}...")
+
+    # Decode token (will raise appropriate exceptions if invalid)
     payload = decode_access_token(token)
+    logger.info("Token decoded successfully")
+
     email = payload.get("sub")
     if not email:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid Token Payload",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        logger.error("No email in token payload")
+        raise InvalidTokenException(detail="Invalid token payload")
 
-    user = db.execute(select(User).where(
-        User.email == email)).scalar_one_or_none()
+    logger.info(f"Looking for user with email: {email}")
+
+    user = db.execute(
+        select(User).where(User.email == email)
+    ).scalar_one_or_none()
 
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        logger.error(f"User not found for email: {email}")
+        raise UserNotFoundException()
 
+    logger.info(f"User found: {user.email}")
     return user
 
 
-@router.post("/register", response_model=Token, status_code=201)
+@router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
 def register(user: UserRegister, db: DbSession):
-    existing_user = db.execute(select(User).where(
-        User.email == user.email)).scalar_one_or_none()
+    existing_user = db.execute(
+        select(User).where(User.email == user.email)
+    ).scalar_one_or_none()
+
     if existing_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise DuplicateResourceException(detail="Email already registered")
 
     register_user = User(
-        email=user.email, hashed_password=hash_password(user.password))
+        email=user.email,
+        hashed_password=hash_password(user.password)
+    )
 
     db.add(register_user)
     db.commit()
@@ -173,16 +190,16 @@ def register(user: UserRegister, db: DbSession):
 
 @router.post("/login", response_model=Token)
 def login(user_data: UserLogin, db: DbSession):
-    user = db.execute(select(User).where(
-        User.email == user_data.email)).scalar_one_or_none()
+    user = db.execute(
+        select(User).where(User.email == user_data.email)
+    ).scalar_one_or_none()
+
     if not user or not verify_password(user_data.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise InvalidCredentialsException()
+
     access_token = create_access_token(subject=user.email)
     refresh_token = create_refresh_token(subject=user.email)
+
     return Token(access_token=access_token, refresh_token=refresh_token)
 
 
@@ -192,21 +209,14 @@ def refresh_token(token_data: TokenRefresh, db: DbSession):
     email = payload.get("sub")
 
     if not email:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token payload",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise InvalidTokenException(detail="Invalid token payload")
 
-    user = db.execute(select(User).where(
-        User.email == email)).scalar_one_or_none()
+    user = db.execute(
+        select(User).where(User.email == email)
+    ).scalar_one_or_none()
 
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        raise UserNotFoundException()
 
     access_token = create_access_token(subject=email)
     refresh_token = create_refresh_token(subject=email)
@@ -216,6 +226,6 @@ def refresh_token(token_data: TokenRefresh, db: DbSession):
 
 @router.get("/me", response_model=UserResponse)
 def read_current_user(
-    current_user: Annotated[User, Depends(get_current_user)],
+        current_user: Annotated[User, Depends(get_current_active_user)],
 ):
     return current_user
