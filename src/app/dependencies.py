@@ -2,13 +2,14 @@
 
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status, Request, Security
+from fastapi import Depends, Request, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
 from .database import get_db
 from .models import User
 from .utils.custom_exceptions import AuthenticationException
+
 DbSession = Annotated[Session, Depends(get_db)]
 docs_security = HTTPBearer(auto_error=False)
 

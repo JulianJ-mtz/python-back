@@ -1,14 +1,14 @@
-from typing import Annotated
 import uuid
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import User
-from ..schemas import UserCreate, UserResponse
 from ..routes.auth import hash_password
+from ..schemas import UserCreate, UserResponse
 from ..utils.custom_exceptions import ResourceNotFoundException, DuplicateResourceException
 
 DbSession = Annotated[Session, Depends(get_db)]
@@ -29,7 +29,7 @@ def get_user(user_id: uuid.UUID, db: DbSession):
 
     if not user:
         raise ResourceNotFoundException(resource="User")
-    
+
     return user
 
 
@@ -61,7 +61,7 @@ def update_user(user_id: uuid.UUID, user_update: UserCreate, db: DbSession):
         existing_user = db.execute(
             select(User).where(User.email == user_update.email)
         ).scalar_one_or_none()
-        
+
         if existing_user:
             raise DuplicateResourceException(detail="Email already in use")
 

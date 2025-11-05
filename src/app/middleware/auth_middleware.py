@@ -1,12 +1,14 @@
 """Authentication middleware for FastAPI."""
 
 import logging
+from typing import Callable, Awaitable, Any
+
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials
+
 from ..routes.auth import get_current_user, get_db
 from ..utils.custom_exceptions import AuthenticationException
-from typing import Callable, Awaitable, Any
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -25,10 +27,10 @@ PUBLIC_PATHS = [
 
 
 async def auth_middleware(
-    request: Request, call_next: Callable[[Request], Awaitable[Any]]
+        request: Request, call_next: Callable[[Request], Awaitable[Any]]
 ) -> Any:
     """Middleware to authenticate requests."""
-    
+
     # Skip authentication for public routes
     if request.url.path in PUBLIC_PATHS or request.url.path.startswith("/docs"):
         return await call_next(request)
@@ -37,7 +39,7 @@ async def auth_middleware(
 
     # Get the token from the Authorization header
     auth_header = request.headers.get("Authorization")
-    
+
     if not auth_header or not auth_header.startswith("Bearer "):
         logger.warning("No Bearer token found in Authorization header")
         return JSONResponse(
@@ -47,7 +49,7 @@ async def auth_middleware(
         )
 
     token = auth_header.split(" ")[1] if len(auth_header.split(" ")) > 1 else ""
-    
+
     if not token:
         logger.warning("Empty token provided")
         return JSONResponse(

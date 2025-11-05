@@ -1,9 +1,10 @@
 import sys
 from logging.config import fileConfig
 from pathlib import Path
+
+from alembic import context
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
-from alembic import context
 
 # Add the project root to the path so we can import our modules
 project_root = Path(__file__).resolve().parents[1]

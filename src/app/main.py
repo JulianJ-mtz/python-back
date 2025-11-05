@@ -1,18 +1,19 @@
 """FastAPI application entry point."""
 
 from fastapi import FastAPI, Request, status
-from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError, HTTPException
+from fastapi.responses import JSONResponse
 
 from .database import engine
+from .middleware.auth_middleware import auth_middleware
 from .models import Base
 from .routes import auth, user
-from .middleware.auth_middleware import auth_middleware
 from .utils.custom_exceptions import AuthenticationException
 
 app = FastAPI(title="python api")
 
 from fastapi.openapi.utils import get_openapi
+
 
 def custom_openapi():
     if app.openapi_schema:
@@ -36,7 +37,9 @@ def custom_openapi():
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 
+
 app.openapi = custom_openapi
+
 
 @app.middleware("http")
 async def auth_middleware_handler(request: Request, call_next):
@@ -44,7 +47,6 @@ async def auth_middleware_handler(request: Request, call_next):
 
 
 Base.metadata.create_all(bind=engine)
-
 
 app.include_router(user.router)
 app.include_router(auth.router)
@@ -89,7 +91,7 @@ async def general_exception_handler(request: Request, exc: Exception):
     import logging
     logger = logging.getLogger(__name__)
     logger.error(f"Unexpected error: {str(exc)}", exc_info=True)
-    
+
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": "Internal server error"},

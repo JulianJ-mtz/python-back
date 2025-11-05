@@ -9,6 +9,7 @@ from src.app.database import get_db
 from src.app.models import Score
 from src.app.schemas import ScoreResponse
 from .auth import get_current_user
+
 DbSession = Annotated[Session, Depends(get_db)]
 router = APIRouter(prefix="/score", tags=["score"])
 
@@ -22,7 +23,6 @@ def get_scores(db: DbSession):
 @router.post("/", response_model=ScoreResponse)
 def create_score(score: ScoreResponse, db: DbSession,
                  current_user: Annotated[str, Depends(get_current_user)]):
-
     if not current_user:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
