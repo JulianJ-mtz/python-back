@@ -1,5 +1,3 @@
-"""Database configuration and session management."""
-
 import os
 
 from dotenv import load_dotenv

@@ -1,11 +1,8 @@
-"""FastAPI application entry point."""
-
 from fastapi import FastAPI, Request, status
-from fastapi.exceptions import RequestValidationError, HTTPException
+from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.responses import JSONResponse
 
 from .database import engine
-from .middleware.auth_middleware import auth_middleware
 from .models import Base
 from .routes import auth, user
 from .utils.custom_exceptions import AuthenticationException
@@ -24,27 +21,44 @@ def custom_openapi():
         description="API with JWT authentication.",
         routes=app.routes,
     )
-    openapi_schema["components"]["securitySchemes"] = {
-        "BearerAuth": {
-            "type": "http",
-            "scheme": "bearer",
-            "bearerFormat": "JWT",
-        }
+
+    if "components" not in openapi_schema:
+        openapi_schema["components"] = {}
+
+    if "securitySchemes" not in openapi_schema["components"]:
+        openapi_schema["components"]["securitySchemes"] = {}
+
+    openapi_schema["components"]["securitySchemes"]["BearerAuth"] = {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
     }
-    for path in openapi_schema["paths"].values():
-        for method in path.values():
-            method.setdefault("security", [{"BearerAuth": []}])
+
+    # Lista de endpoints públicos que NO requieren autenticación
+    public_endpoints = [
+        ("/auth/register", "post"),
+        ("/auth/login", "post"),
+        ("/auth/refresh", "post"),
+        ("/", "get"),
+        ("/health", "get"),
+    ]
+
+    for path, path_item in openapi_schema["paths"].items():
+        for method, operation in path_item.items():
+            # Solo agregar seguridad si NO es un endpoint público
+            is_public = any(path == pub_path and method == pub_method
+                            for pub_path, pub_method in public_endpoints)
+
+            if not is_public:
+                operation["security"] = [{"BearerAuth": []}]
+            else:
+                operation["security"] = []
+
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 
 
 app.openapi = custom_openapi
-
-
-@app.middleware("http")
-async def auth_middleware_handler(request: Request, call_next):
-    return await auth_middleware(request, call_next)
-
 
 Base.metadata.create_all(bind=engine)
 
@@ -54,7 +68,9 @@ app.include_router(auth.router)
 
 # Global exception handlers
 @app.exception_handler(AuthenticationException)
-async def authentication_exception_handler(request: Request, exc: AuthenticationException):
+async def authentication_exception_handler(
+        request: Request, exc: AuthenticationException
+):
     """Handle authentication exceptions."""
     return JSONResponse(
         status_code=exc.status_code,
@@ -89,6 +105,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 async def general_exception_handler(request: Request, exc: Exception):
     """Handle unexpected errors."""
     import logging
+
     logger = logging.getLogger(__name__)
     logger.error(f"Unexpected error: {str(exc)}", exc_info=True)
 

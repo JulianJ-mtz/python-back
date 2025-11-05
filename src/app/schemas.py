@@ -37,3 +37,10 @@ class UserLogin(BaseModel):
 
 class ScoreResponse(BaseModel):
     point: float
+
+
+class JWTPayload(BaseModel):
+    sub: str
+    type: str
+    exp: int
+    iat: int
