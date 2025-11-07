@@ -35,8 +35,51 @@ class UserLogin(BaseModel):
     password: str
 
 
+class ScoreCreate(BaseModel):
+    mode: str
+    mode_value: int
+    total_clicks: int
+    correct_clicks: int
+    duration: float
+    consistency: float | None = None
+
+
 class ScoreResponse(BaseModel):
-    point: float
+    id: uuid.UUID
+    user_id: uuid.UUID
+    mode: str
+    mode_value: int
+    cps: float
+    total_clicks: int
+    correct_clicks: int
+    duration: float
+    accuracy: float
+    consistency: float | None
+    created_at: str
+
+    class Config:
+        from_attributes: bool = True
+        arbitrary_types_allowed: bool = True
+
+
+class LeaderboardEntry(BaseModel):
+    score: ScoreResponse
+    user_email: str
+
+    class Config:
+        from_attributes: bool = True
+
+
+class PersonalBests(BaseModel):
+    time: dict[str, ScoreResponse | None]
+    clicks: dict[str, ScoreResponse | None]
+
+
+class AverageStats(BaseModel):
+    avg_cps: float
+    avg_accuracy: float
+    avg_consistency: float
+    total_tests: int
 
 
 class JWTPayload(BaseModel):

@@ -41,7 +41,7 @@ def create_user(db: Session, email: str, hashed_password: str) -> User:
 
 
 def update_user(
-        db: Session, user_id: uuid.UUID, email: EmailStr, hashed_password: str
+    db: Session, user_id: uuid.UUID, email: EmailStr, hashed_password: str
 ) -> User:
     user = get_user_by_id(db, user_id)
 
@@ -64,4 +64,4 @@ def delete_user(db: Session, user_id: uuid.UUID) -> None:
 
 
 def user_to_response(user: User) -> UserResponse:
-    return UserResponse(id=user.id, email=user.email)
+    return UserResponse(id=uuid.UUID(str(user.id)), email=user.email)
