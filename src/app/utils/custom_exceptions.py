@@ -58,3 +58,17 @@ class DuplicateResourceException(HTTPException):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=detail,
         )
+
+
+class InvalidInputScoreException(HTTPException):
+    """Invalid mode_value for the provided mode."""
+
+    def __init__(self, mode, mode_value, valid_values):
+        mode_name = getattr(mode, "value", str(mode))
+        super().__init__(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Invalid mode_value {mode_value} for {mode_name} mode. "
+                f"Valid values: {sorted(valid_values)}"
+            ),
+        )

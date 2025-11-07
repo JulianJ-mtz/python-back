@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 
 from .database import engine
 from .models import Base
-from .routes import auth, user
+from .routes import auth, user, score
 from .utils.custom_exceptions import AuthenticationException
 
 app = FastAPI(title="python api")
@@ -41,13 +41,16 @@ def custom_openapi():
         ("/auth/refresh", "post"),
         ("/", "get"),
         ("/health", "get"),
+        ("/scores/leaderboard", "get"),
     ]
 
     for path, path_item in openapi_schema["paths"].items():
         for method, operation in path_item.items():
             # Solo agregar seguridad si NO es un endpoint público
-            is_public = any(path == pub_path and method == pub_method
-                            for pub_path, pub_method in public_endpoints)
+            is_public = any(
+                path == pub_path and method == pub_method
+                for pub_path, pub_method in public_endpoints
+            )
 
             if not is_public:
                 operation["security"] = [{"BearerAuth": []}]
@@ -64,12 +67,13 @@ Base.metadata.create_all(bind=engine)
 
 app.include_router(user.router)
 app.include_router(auth.router)
+app.include_router(score.router)
 
 
 # Global exception handlers
 @app.exception_handler(AuthenticationException)
 async def authentication_exception_handler(
-        request: Request, exc: AuthenticationException
+    request: Request, exc: AuthenticationException
 ):
     """Handle authentication exceptions."""
     return JSONResponse(
