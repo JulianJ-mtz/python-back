@@ -10,12 +10,12 @@ from ..dependencies import get_current_active_user
 from ..models import User
 from ..models.scores import TestMode
 from ..schemas import (
+    AverageStats,
+    LeaderboardEntry,
+    PersonalBests,
     ScoreCreate,
     ScoreResponse,
     UserResponse,
-    LeaderboardEntry,
-    PersonalBests,
-    AverageStats,
 )
 from ..services import score_service
 

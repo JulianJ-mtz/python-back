@@ -11,7 +11,7 @@ project_root = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(project_root))
 
 # Import all models so Alembic can detect them for autogenerate
-from src.app.models import *  # noqa: E402 
+from src.app.models import *  # noqa: E402, F403
 
 # Import db configuration to get the database URL
 from src.app.database import db_url  # noqa: E402
@@ -28,7 +28,7 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # add your model's MetaData object here
-target_metadata = Base.metadata
+target_metadata = Base.metadata  # noqa: F405
 
 
 def run_migrations_offline() -> None:

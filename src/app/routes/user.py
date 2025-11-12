@@ -52,6 +52,10 @@ def update_user_endpoint(
 ) -> UserResponse:
     hashed_pwd = hash_password(user_update.password)
     user = update_user(
-        db, user_id=user_id, email=user_update.email, hashed_password=hashed_pwd
+        db,
+        user_id=user_id,
+        email=user_update.email,
+        username=user_update.username,
+        hashed_password=hashed_pwd,
     )
     return user_to_response(user)

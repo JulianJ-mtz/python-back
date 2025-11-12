@@ -37,7 +37,12 @@ logger = logging.getLogger(__name__)
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
 def register(user_data: UserRegister, db: DbSession) -> Token:
     hashed_pwd = hash_password(user_data.password)
-    user = create_user(db, email=user_data.email, hashed_password=hashed_pwd)
+    user = create_user(
+        db,
+        email=user_data.email,
+        username=user_data.username,
+        hashed_password=hashed_pwd,
+    )
     return create_token_pair(user.email)
 
 
@@ -63,6 +68,6 @@ def refresh_token(token_data: TokenRefresh, db: DbSession) -> Token:
 
 @router.get("/me", response_model=UserResponse)
 def read_current_user(
-        current_user: Annotated[UserResponse, Depends(get_current_active_user)],
+    current_user: Annotated[UserResponse, Depends(get_current_active_user)],
 ) -> UserResponse:
     return current_user

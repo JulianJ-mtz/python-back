@@ -28,12 +28,12 @@ def get_all_users(db: Session) -> Sequence[User]:
     return db.execute(select(User).order_by(User.id)).scalars().all()
 
 
-def create_user(db: Session, email: str, hashed_password: str) -> User:
+def create_user(db: Session, username: str, email: str, hashed_password: str) -> User:
     existing_user = get_user_by_email(db, email)
     if existing_user:
         raise DuplicateResourceException(detail="Email already registered")
 
-    new_user = User(email=email, hashed_password=hashed_password)
+    new_user = User(email=email, username=username, hashed_password=hashed_password)
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
@@ -41,7 +41,11 @@ def create_user(db: Session, email: str, hashed_password: str) -> User:
 
 
 def update_user(
-    db: Session, user_id: uuid.UUID, email: EmailStr, hashed_password: str
+    db: Session,
+    user_id: uuid.UUID,
+    email: EmailStr,
+    username: str,
+    hashed_password: str,
 ) -> User:
     user = get_user_by_id(db, user_id)
 
@@ -52,6 +56,7 @@ def update_user(
 
     user.email = email
     user.hashed_password = hashed_password
+    user.username = username
     db.commit()
     db.refresh(user)
     return user
@@ -64,4 +69,6 @@ def delete_user(db: Session, user_id: uuid.UUID) -> None:
 
 
 def user_to_response(user: User) -> UserResponse:
-    return UserResponse(id=uuid.UUID(str(user.id)), email=user.email)
+    return UserResponse(
+        id=uuid.UUID(str(user.id)), email=user.email, username=user.username
+    )
