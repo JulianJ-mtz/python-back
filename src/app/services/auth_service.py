@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import jwt
 from dotenv import load_dotenv
-from passlib.context import CryptContext
+import bcrypt
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
@@ -28,14 +28,15 @@ REFRESH_TOKEN_EXPIRE_DAYS_ENV = float(os.getenv("DAYS_REFRESH_TOKEN_EXPIRE", "7"
 if not SECRET_KEY_ENV:
     raise ValueError("SECRET_KEY environment variable is not set")
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 BCRYPT_MAX_BYTES = 72
 
 
 def _ensure_password_length(password: str) -> None:
     encoded = password.encode("utf-8")
     if len(encoded) > BCRYPT_MAX_BYTES:
-        logger.info("Password exceeds bcrypt byte limit", extra={"length": len(encoded)})
+        logger.info(
+            "Password exceeds bcrypt byte limit", extra={"length": len(encoded)}
+        )
         raise PasswordTooLongException(max_bytes=BCRYPT_MAX_BYTES)
 
 
@@ -44,8 +45,10 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verifies if a password matches its hash."""
     _ensure_password_length(plain_password)
     try:
-        return pwd_context.verify(plain_password, hashed_password)
-    except ValueError as exc:
+        return bcrypt.checkpw(
+            plain_password.encode("utf-8"), hashed_password.encode("utf-8")
+        )
+    except (ValueError, TypeError) as exc:
         logger.exception("Password verification failed unexpectedly")
         raise InvalidCredentialsException() from exc
 
@@ -54,8 +57,10 @@ def hash_password(plain_password: str) -> str:
     """Generates a hash for a password."""
     _ensure_password_length(plain_password)
     try:
-        return pwd_context.hash(plain_password)
-    except ValueError as exc:
+        salt = bcrypt.gensalt()
+        hashed = bcrypt.hashpw(plain_password.encode("utf-8"), salt)
+        return hashed.decode("utf-8")
+    except (ValueError, TypeError) as exc:
         logger.exception("Password hashing failed unexpectedly")
         raise PasswordTooLongException(max_bytes=BCRYPT_MAX_BYTES) from exc
 

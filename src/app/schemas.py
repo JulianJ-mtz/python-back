@@ -19,8 +19,10 @@ class UserResponse(BaseModel):
         from_attributes: bool = True
 
 
-class UserRegister(UserCreate):
-    pass
+class UserRegister(BaseModel):
+    email: EmailStr
+    username: str
+    password: str
 
 class UserUpdate(BaseModel):
     id: uuid.UUID

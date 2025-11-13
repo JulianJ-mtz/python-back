@@ -28,6 +28,12 @@ def get_user_by_email(db: Session, email: str) -> User | None:
     return db.execute(select(User).where(User.email == email)).scalar_one_or_none()
 
 
+def get_user_by_username(db: Session, username: str) -> User | None:
+    return db.execute(
+        select(User).where(User.username == username)
+    ).scalar_one_or_none()
+
+
 def get_all_users(db: Session) -> Sequence[User]:
     return db.execute(select(User).order_by(User.id)).scalars().all()
 
@@ -36,6 +42,10 @@ def create_user(db: Session, username: str, email: str, hashed_password: str) ->
     existing_user = get_user_by_email(db, email)
     if existing_user:
         raise DuplicateResourceException(detail="Email already registered")
+
+    existing_username = get_user_by_username(db, username)
+    if existing_username:
+        raise DuplicateResourceException(detail="Username already taken")
 
     new_user = User(email=email, username=username, hashed_password=hashed_password)
     db.add(new_user)
@@ -56,6 +66,11 @@ def update_user(db: Session, user_to_update: UserUpdate) -> User:
         existing_user = get_user_by_email(db, user_to_update.email)
         if existing_user:
             raise DuplicateResourceException(detail="Email already in use")
+
+    if user.username != user_to_update.username:
+        existing_username = get_user_by_username(db, user_to_update.username)
+        if existing_username:
+            raise DuplicateResourceException(detail="Username already in use")
 
     user.email = user_to_update.email
 
