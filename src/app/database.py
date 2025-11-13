@@ -20,7 +20,7 @@ IS_PRODUCTION = os.getenv("VERCEL_ENV") == "production" or IS_VERCEL
 
 if DATABASE_URL:
     if DATABASE_URL.startswith("postgresql://"):
-        db_url = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
+        db_url = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
     else:
         db_url = DATABASE_URL
 
@@ -84,6 +84,9 @@ else:
 try:
     engine = create_engine(db_url, **engine_kwargs)
     logger.info("Database engine created successfully")
+    logger.info(
+        f"Pool: {pool_class.__name__}, Vercel: {IS_VERCEL}, Prod: {IS_PRODUCTION}"
+    )
 except Exception as e:
     logger.error(f"Failed to create database engine: {e}")
     raise
