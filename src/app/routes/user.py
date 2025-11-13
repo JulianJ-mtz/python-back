@@ -31,24 +31,24 @@ def get_users(
 
 
 @router.get("/{user_id}", response_model=UserResponse)
-def get_user(user_id: uuid.UUID, db: DbSession) -> UserResponse:
-    #    current_user: CurrentUser
+def get_user(
+    user_id: uuid.UUID, db: DbSession, current_user: CurrentUser
+) -> UserResponse:
     user = get_user_by_id(db, user_id)
     return user_to_response(user)
 
 
 @router.delete("/{user_id}", status_code=204)
-def delete_user_endpoint(user_id: uuid.UUID, db: DbSession) -> None:
-    #    current_user: CurrentUser
+def delete_user_endpoint(
+    user_id: uuid.UUID, db: DbSession, current_user: CurrentUser
+) -> None:
     delete_user(db, user_id)
     return None
 
 
 @router.put("/", response_model=UserResponse)
 def update_user_endpoint(
-    user_update: UserUpdate,
-    db: DbSession,
-    #    current_user: CurrentUser
+    user_update: UserUpdate, db: DbSession, current_user: CurrentUser
 ) -> UserResponse:
     if user_update.password is not None:
         hashed_pwd = hash_password(user_update.password)
