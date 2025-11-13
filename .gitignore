@@ -16,3 +16,22 @@ alembic/__pycache__/
 alembic/versions/__pycache__/
 pyrightconfig.json
 SUPABASE.md
+
+# Vercel
+.vercel
+.vercel/
+*.log
+
+# Node modules (if using any Node dependencies)
+node_modules/
+
+# IDE
+.vscode/
+.env.local
+.env.*.local
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+

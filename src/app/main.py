@@ -12,8 +12,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:4200",  # angular dev
-        "https://clicktuki.vercel.app",  # soon
-        "https://clicktuki.com",  # soon
+        "http://localhost:3000",  # local frontend
+        "https://clicktuki.vercel.app",  # Vercel frontend
+        "https://clicktuki.com",  # production
+        "https://*.vercel.app",  # allow all Vercel preview deployments
     ],
     allow_credentials=True,
     allow_methods=["*"],

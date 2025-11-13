@@ -4,7 +4,7 @@ version = "0.1.0"
 description = ""
 authors = [{ name = "jjmr", email = "josejulian.mtzr@gmail.com" }]
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
   "fastapi[standard] (>=0.120.1,<0.121.0)",
   "pydantic (>=2.12.3,<3.0.0)",

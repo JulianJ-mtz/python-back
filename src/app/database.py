@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import OperationalError
-from sqlalchemy.pool import QueuePool
+from sqlalchemy.pool import QueuePool, NullPool
 
 load_dotenv()
 
@@ -13,20 +13,35 @@ logger = logging.getLogger(__name__)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+# Detect if running in Vercel/serverless environment
+IS_VERCEL = os.getenv("VERCEL") is not None
+IS_PRODUCTION = os.getenv("NODE_ENV") == "production"
+
 if DATABASE_URL:
     if DATABASE_URL.startswith("postgresql://"):
         db_url = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
     else:
         db_url = DATABASE_URL
 
-    # Supabase-specific pool configuration
-    pool_size = 5
-    max_overflow = 10
-    pool_timeout = 30
-    pool_recycle = 300
-    logger.info("Using Supabase database connection")
+    # Serverless-optimized pool configuration for Vercel/Supabase
+    if IS_VERCEL or IS_PRODUCTION:
+        pool_class = NullPool  # No connection pooling in serverless
+        pool_size = 1
+        max_overflow = 0
+        pool_timeout = 10
+        pool_recycle = 60
+        logger.info("Using serverless database configuration (NullPool)")
+    else:
+        # Supabase-specific pool configuration for development
+        pool_class = QueuePool
+        pool_size = 5
+        max_overflow = 10
+        pool_timeout = 30
+        pool_recycle = 300
+        logger.info("Using Supabase database connection")
 else:
     db_url = "postgresql://postgres:root@localhost:5432/py-db"
+    pool_class = QueuePool
     pool_size = 10
     max_overflow = 20
     pool_timeout = 30
@@ -36,7 +51,7 @@ else:
 try:
     engine = create_engine(
         db_url,
-        poolclass=QueuePool,
+        poolclass=pool_class,
         pool_size=pool_size,
         max_overflow=max_overflow,
         pool_timeout=pool_timeout,
