@@ -1,13 +1,25 @@
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 
-from .database import engine
-from .models import Base
 from .routes import auth, user, score
 from .utils.custom_exceptions import AuthenticationException
 
 app = FastAPI(title="python api")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:4200",  # angular dev
+        "https://clicktuki.vercel.app",  # soon
+        "https://clicktuki.com",  # soon
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 from fastapi.openapi.utils import get_openapi
 
@@ -63,7 +75,8 @@ def custom_openapi():
 
 app.openapi = custom_openapi
 
-Base.metadata.create_all(bind=engine)
+# Note: Tables are managed by Alembic migrations, not created here
+# Run: alembic upgrade head
 
 app.include_router(user.router)
 app.include_router(auth.router)
@@ -127,5 +140,14 @@ def root():
 
 @app.get("/health")
 def health():
-    """Health check endpoint."""
-    return {"status": "ok"}
+    """Health check endpoint with database connectivity test."""
+    from .database import test_connection
+    
+    db_status = "connected" if test_connection() else "disconnected"
+    overall_status = "healthy" if db_status == "connected" else "unhealthy"
+    
+    return {
+        "status": overall_status,
+        "database": db_status,
+        "api": "ok"
+    }

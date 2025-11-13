@@ -1,12 +1,11 @@
 import uuid
 from typing import Sequence
 
-from pydantic import EmailStr
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..models import User
-from ..schemas import UserResponse
+from ..schemas import UserResponse, UserUpdate
 from ..utils.custom_exceptions import (
     ResourceNotFoundException,
     DuplicateResourceException,
@@ -40,23 +39,20 @@ def create_user(db: Session, username: str, email: str, hashed_password: str) ->
     return new_user
 
 
-def update_user(
-    db: Session,
-    user_id: uuid.UUID,
-    email: EmailStr,
-    username: str,
-    hashed_password: str,
-) -> User:
-    user = get_user_by_id(db, user_id)
+def update_user(db: Session, user_to_update: UserUpdate) -> User:
+    user = get_user_by_id(db, user_to_update.id)
 
-    if user.email != email:
-        existing_user = get_user_by_email(db, email)
+    if user.email != user_to_update.email:
+        existing_user = get_user_by_email(db, user_to_update.email)
         if existing_user:
             raise DuplicateResourceException(detail="Email already in use")
 
-    user.email = email
-    user.hashed_password = hashed_password
-    user.username = username
+    user.email = user_to_update.email
+
+    if user_to_update.password is not None:
+        user.hashed_password = user_to_update.password
+
+    user.username = user_to_update.username
     db.commit()
     db.refresh(user)
     return user

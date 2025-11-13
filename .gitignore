@@ -9,8 +9,10 @@ env
 .idea
 .DS_Store
 token.json
+.github
 
 # Alembic cache
 alembic/__pycache__/
 alembic/versions/__pycache__/
 pyrightconfig.json
+SUPABASE.md

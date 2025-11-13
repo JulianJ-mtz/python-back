@@ -19,7 +19,7 @@ from ..utils.custom_exceptions import (
 logger = logging.getLogger(__name__)
 load_dotenv()
 
-SECRET_KEY_ENV = os.getenv("SECRET_KEY")
+SECRET_KEY_ENV = os.getenv("SECRET_KEY") or ""
 ALGORITHM_ENV = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES_ENV = float(os.getenv("MINUTES_TOKEN_EXPIRE", "60"))
 REFRESH_TOKEN_EXPIRE_DAYS_ENV = float(os.getenv("DAYS_REFRESH_TOKEN_EXPIRE", "7"))
@@ -32,18 +32,18 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Password utilities
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verifica si una contraseña coincide con su hash."""
+    """Verifies if a password matches its hash."""
     return pwd_context.verify(plain_password, hashed_password)
 
 
 def hash_password(plain_password: str) -> str:
-    """Genera un hash de una contraseña."""
+    """Generates a hash for a password."""
     return pwd_context.hash(plain_password)
 
 
 # Token utilities
 def _create_token(subject: str, token_type: str, expires_delta: timedelta) -> str:
-    """Crea un token JWT."""
+    """Creates a JWT token."""
     now = datetime.now(timezone.utc)
     expire = now + expires_delta
 
@@ -58,28 +58,23 @@ def _create_token(subject: str, token_type: str, expires_delta: timedelta) -> st
     return encoded
 
 
-def create_access_token(subject: str, expires_delta: timedelta | None = None) -> str:
-    """Crea un access token."""
-    delta = (
-        expires_delta
-        if expires_delta
-        else timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES_ENV)
-    )
-    return _create_token(subject, "access", delta)
+def create_token(
+    subject: str, token_type: str = "access", expires_delta: timedelta | None = None
+) -> str:
+    """Create a JWT token, either access or refresh."""
+    if not expires_delta:
+        if token_type == "access":
+            expires_delta = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES_ENV)
+        elif token_type == "refresh":
+            expires_delta = timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS_ENV)
+        else:
+            raise ValueError(f"Invalid token type: {token_type}")
 
-
-def create_refresh_token(subject: str, expires_delta: timedelta | None = None) -> str:
-    """Crea un refresh token."""
-    delta = (
-        expires_delta
-        if expires_delta
-        else timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS_ENV)
-    )
-    return _create_token(subject, "refresh", delta)
+    return _create_token(subject, token_type, expires_delta)
 
 
 def _decode_token(token: str, expected_type: str) -> JWTPayload:
-    """Decodifica y valida un token JWT."""
+    """Decodes and validates a JWT token."""
     try:
         payload_dict = jwt.decode(token, SECRET_KEY_ENV, algorithms=[ALGORITHM_ENV])
         payload = JWTPayload.model_validate(payload_dict)
@@ -105,16 +100,15 @@ def decode_refresh_token(token: str) -> JWTPayload:
 
 
 def create_token_pair(email: str) -> Token:
-    """Crea un par de tokens (access y refresh) para un usuario."""
-    access_token = create_access_token(subject=email)
-    refresh_token = create_refresh_token(subject=email)
+    access_token = create_token(subject=email, token_type="access")
+    refresh_token = create_token(subject=email, token_type="refresh")
     return Token(access_token=access_token, refresh_token=refresh_token)
 
 
 def authenticate_user(db: Session, email: str, password: str) -> str:
     """
-    Autentica un usuario con email y contraseña.
-    Retorna el email si es válido, lanza excepción si no.
+    Authenticates a user with email and password.
+    Returns the email if valid, raises exception if not.
     """
     user = get_user_by_email(db, email)
     if not user or not verify_password(password, user.hashed_password):
