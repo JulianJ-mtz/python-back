@@ -1,11 +1,75 @@
+import logging
+import os
 import uuid
-from typing import List, Optional
-from datetime import datetime, timedelta
-from sqlalchemy.orm import Session
-from sqlalchemy import desc, func
+from datetime import datetime, timedelta, timezone
+from typing import Optional
 
-from src.app.models.scores import Score, TestMode, VALID_MODE_VALUES
-from src.app.utils.custom_exceptions import InvalidInputScoreException
+from dotenv import load_dotenv
+from sqlalchemy import and_, desc, func, select
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
+
+from ..models.scores import Score, TestMode, VALID_MODE_VALUES
+from ..utils.custom_exceptions import (
+    DatabaseOperationException,
+    InvalidInputScoreException,
+    InvalidScoreMetricsException,
+    TooManyRequestsException,
+)
+
+load_dotenv()
+
+logger = logging.getLogger(__name__)
+
+
+def _get_positive_int_env(name: str, default: int) -> int:
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+
+    try:
+        parsed = int(raw_value)
+        if parsed < 0:
+            raise ValueError
+        return parsed
+    except ValueError:
+        logger.warning(
+            "Invalid environment value for %s=%r. Falling back to %s.",
+            name,
+            raw_value,
+            default,
+        )
+        return default
+
+
+_SCORE_RATE_LIMIT_COUNT = _get_positive_int_env(
+    "SCORE_SUBMISSION_MAX_REQUESTS",
+    default=60,
+)
+_SCORE_RATE_LIMIT_WINDOW = _get_positive_int_env(
+    "SCORE_SUBMISSION_WINDOW_SECONDS",
+    default=60,
+)
+
+
+def _enforce_submission_rate_limit(db: Session, user_id: uuid.UUID) -> None:
+    if _SCORE_RATE_LIMIT_COUNT == 0 or _SCORE_RATE_LIMIT_WINDOW == 0:
+        return
+
+    window_start = datetime.now(timezone.utc) - timedelta(
+        seconds=_SCORE_RATE_LIMIT_WINDOW
+    )
+    stmt = select(func.count(Score.id)).where(
+        Score.user_id == user_id, Score.created_at >= window_start
+    )
+    submission_count = db.execute(stmt).scalar_one()
+
+    if submission_count >= _SCORE_RATE_LIMIT_COUNT:
+        logger.info("Score submission limit reached", extra={"user_id": str(user_id)})
+        raise TooManyRequestsException(
+            detail="Score submission rate limit exceeded",
+            retry_after=_SCORE_RATE_LIMIT_WINDOW,
+        )
 
 
 def create_score(
@@ -33,15 +97,29 @@ def create_score(
     Returns:
         Score: The created score
     """
-    # Calculate CPS based on correct clicks
-    cps = correct_clicks / duration if duration > 0 else 0.0
-
-    # Calculate accuracy
-    accuracy = (correct_clicks / total_clicks * 100) if total_clicks > 0 else 0.0
-
-    # Validate mode_value
     if mode_value not in VALID_MODE_VALUES[mode]:
         raise InvalidInputScoreException(mode, mode_value, VALID_MODE_VALUES[mode])
+
+    if total_clicks < 0 or correct_clicks < 0:
+        raise InvalidScoreMetricsException(detail="Clicks must be non-negative")
+
+    if correct_clicks > total_clicks:
+        raise InvalidScoreMetricsException(
+            detail="Correct clicks cannot exceed total clicks",
+        )
+
+    if duration <= 0:
+        raise InvalidScoreMetricsException(detail="Duration must be greater than zero")
+
+    if consistency is not None and not 0 <= consistency <= 100:
+        raise InvalidScoreMetricsException(
+            detail="Consistency must be between 0 and 100",
+        )
+
+    cps = correct_clicks / duration
+    accuracy = (correct_clicks / total_clicks * 100) if total_clicks > 0 else 0.0
+
+    _enforce_submission_rate_limit(db, user_id)
 
     new_score = Score(
         user_id=user_id,
@@ -54,9 +132,21 @@ def create_score(
         accuracy=accuracy,
         consistency=consistency,
     )
-
     db.add(new_score)
-    db.commit()
+
+    try:
+        db.commit()
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.exception(
+            "Failed to create score",
+            extra={
+                "user_id": str(user_id),
+                "mode": mode.value,
+                "mode_value": mode_value,
+            },
+        )
+        raise DatabaseOperationException(detail="Unable to record score") from exc
     db.refresh(new_score)
     return new_score
 
@@ -73,16 +163,18 @@ def get_user_best_score(
         mode: Test mode
         mode_value: Mode value (e.g., 30 for time 30s, 50 for clicks 50)
     """
-    return (
-        db.query(Score)
-        .filter(
+    stmt = (
+        select(Score)
+        .where(
             Score.user_id == user_id,
             Score.mode == mode.value,
             Score.mode_value == mode_value,
         )
         .order_by(desc(Score.cps))
-        .first()
+        .limit(1)
     )
+
+    return db.execute(stmt).scalars().first()
 
 
 def get_user_scores(
@@ -91,7 +183,7 @@ def get_user_scores(
     mode: Optional[TestMode] = None,
     mode_value: Optional[int] = None,
     limit: int = 10,
-) -> List[Score]:
+) -> list[Score]:
     """
     Gets the latest scores of a user.
 
@@ -101,15 +193,21 @@ def get_user_scores(
         mode_value: Filter by mode value (optional)
         limit: Maximum number of results
     """
-    query = db.query(Score).filter(Score.user_id == user_id)
+    if limit <= 0:
+        raise InvalidScoreMetricsException(detail="Limit must be greater than zero")
+
+    stmt = select(Score).where(Score.user_id == user_id)
 
     if mode:
-        query = query.filter(Score.mode == mode.value)
+        stmt = stmt.where(Score.mode == mode.value)
 
     if mode_value:
-        query = query.filter(Score.mode_value == mode_value)
+        stmt = stmt.where(Score.mode_value == mode_value)
 
-    return query.order_by(desc(Score.created_at)).limit(limit).all()
+    stmt = stmt.order_by(desc(Score.created_at)).limit(limit)
+
+    results = db.execute(stmt).scalars().all()
+    return list(results)
 
 
 def get_user_average_stats(
@@ -121,20 +219,23 @@ def get_user_average_stats(
     Returns:
         dict with: avg_cps, avg_accuracy, avg_consistency, total_tests
     """
-    since = datetime.utcnow() - timedelta(days=days)
+    since = datetime.now(timezone.utc) - timedelta(days=days)
 
-    scores = (
-        db.query(Score)
-        .filter(
-            Score.user_id == user_id,
-            Score.mode == mode.value,
-            Score.mode_value == mode_value,
-            Score.created_at >= since,
-        )
-        .all()
+    stmt = select(
+        func.avg(Score.cps),
+        func.avg(Score.accuracy),
+        func.avg(Score.consistency),
+        func.count(Score.id),
+    ).where(
+        Score.user_id == user_id,
+        Score.mode == mode.value,
+        Score.mode_value == mode_value,
+        Score.created_at >= since,
     )
 
-    if not scores:
+    avg_cps, avg_accuracy, avg_consistency, total_tests = db.execute(stmt).one()
+
+    if total_tests == 0:
         return {
             "avg_cps": 0.0,
             "avg_accuracy": 0.0,
@@ -142,22 +243,17 @@ def get_user_average_stats(
             "total_tests": 0,
         }
 
-    total = len(scores)
-    consistency_scores = [s.consistency for s in scores if s.consistency is not None]
-
     return {
-        "avg_cps": sum(s.cps for s in scores) / total,
-        "avg_accuracy": sum(s.accuracy for s in scores) / total,
-        "avg_consistency": sum(consistency_scores) / len(consistency_scores)
-        if consistency_scores
-        else 0.0,
-        "total_tests": total,
+        "avg_cps": float(avg_cps or 0.0),
+        "avg_accuracy": float(avg_accuracy or 0.0),
+        "avg_consistency": float(avg_consistency or 0.0),
+        "total_tests": int(total_tests),
     }
 
 
 def get_leaderboard(
     db: Session, mode: TestMode, mode_value: int, limit: int = 10
-) -> List[Score]:
+) -> list[Score]:
     """
     Gets the global leaderboard for a specific mode and value.
     Returns the best score of each user (highest CPS).
@@ -169,24 +265,28 @@ def get_leaderboard(
     """
     # Subquery to get the best CPS of each user
     subquery = (
-        db.query(Score.user_id, func.max(Score.cps).label("max_cps"))
-        .filter(Score.mode == mode.value, Score.mode_value == mode_value)
+        select(Score.user_id, func.max(Score.cps).label("max_cps"))
+        .where(Score.mode == mode.value, Score.mode_value == mode_value)
         .group_by(Score.user_id)
         .subquery()
     )
 
-    # Main query
-    return (
-        db.query(Score)
+    stmt = (
+        select(Score)
         .join(
             subquery,
-            (Score.user_id == subquery.c.user_id) & (Score.cps == subquery.c.max_cps),
+            and_(
+                Score.user_id == subquery.c.user_id,
+                Score.cps == subquery.c.max_cps,
+            ),
         )
-        .filter(Score.mode == mode.value, Score.mode_value == mode_value)
+        .where(Score.mode == mode.value, Score.mode_value == mode_value)
         .order_by(desc(Score.cps))
         .limit(limit)
-        .all()
     )
+
+    results = db.execute(stmt).scalars().all()
+    return list(results)
 
 
 def get_user_personal_bests(db: Session, user_id: uuid.UUID) -> dict:
@@ -200,7 +300,8 @@ def get_user_personal_bests(db: Session, user_id: uuid.UUID) -> dict:
             "clicks": {"25": Score, "50": Score, "100": Score}
         }
     """
-    all_scores = db.query(Score).filter(Score.user_id == user_id).all()
+    stmt = select(Score).where(Score.user_id == user_id)
+    all_scores = db.execute(stmt).scalars().all()
 
     result = {"time": {}, "clicks": {}}
 

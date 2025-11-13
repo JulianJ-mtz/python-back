@@ -13,6 +13,7 @@ from ..schemas import JWTPayload, Token
 from ..utils.custom_exceptions import (
     InvalidCredentialsException,
     InvalidTokenException,
+    PasswordTooLongException,
     TokenExpiredException,
 )
 
@@ -28,17 +29,35 @@ if not SECRET_KEY_ENV:
     raise ValueError("SECRET_KEY environment variable is not set")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+BCRYPT_MAX_BYTES = 72
+
+
+def _ensure_password_length(password: str) -> None:
+    encoded = password.encode("utf-8")
+    if len(encoded) > BCRYPT_MAX_BYTES:
+        logger.info("Password exceeds bcrypt byte limit", extra={"length": len(encoded)})
+        raise PasswordTooLongException(max_bytes=BCRYPT_MAX_BYTES)
 
 
 # Password utilities
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verifies if a password matches its hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    _ensure_password_length(plain_password)
+    try:
+        return pwd_context.verify(plain_password, hashed_password)
+    except ValueError as exc:
+        logger.exception("Password verification failed unexpectedly")
+        raise InvalidCredentialsException() from exc
 
 
 def hash_password(plain_password: str) -> str:
     """Generates a hash for a password."""
-    return pwd_context.hash(plain_password)
+    _ensure_password_length(plain_password)
+    try:
+        return pwd_context.hash(plain_password)
+    except ValueError as exc:
+        logger.exception("Password hashing failed unexpectedly")
+        raise PasswordTooLongException(max_bytes=BCRYPT_MAX_BYTES) from exc
 
 
 # Token utilities
@@ -110,6 +129,7 @@ def authenticate_user(db: Session, email: str, password: str) -> str:
     Authenticates a user with email and password.
     Returns the email if valid, raises exception if not.
     """
+    _ensure_password_length(password)
     user = get_user_by_email(db, email)
     if not user or not verify_password(password, user.hashed_password):
         raise InvalidCredentialsException()

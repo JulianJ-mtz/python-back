@@ -1,15 +1,20 @@
+import logging
 import uuid
 from typing import Sequence
 
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from ..models import User
 from ..schemas import UserResponse, UserUpdate
 from ..utils.custom_exceptions import (
-    ResourceNotFoundException,
+    DatabaseOperationException,
     DuplicateResourceException,
+    ResourceNotFoundException,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def get_user_by_id(db: Session, user_id: uuid.UUID) -> User:
@@ -34,7 +39,12 @@ def create_user(db: Session, username: str, email: str, hashed_password: str) ->
 
     new_user = User(email=email, username=username, hashed_password=hashed_password)
     db.add(new_user)
-    db.commit()
+    try:
+        db.commit()
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.exception("Failed to create user", extra={"email": email})
+        raise DatabaseOperationException(detail="Unable to create user") from exc
     db.refresh(new_user)
     return new_user
 
@@ -53,7 +63,15 @@ def update_user(db: Session, user_to_update: UserUpdate) -> User:
         user.hashed_password = user_to_update.password
 
     user.username = user_to_update.username
-    db.commit()
+    try:
+        db.commit()
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.exception(
+            "Failed to update user",
+            extra={"user_id": str(user_to_update.id)},
+        )
+        raise DatabaseOperationException(detail="Unable to update user") from exc
     db.refresh(user)
     return user
 
@@ -61,7 +79,15 @@ def update_user(db: Session, user_to_update: UserUpdate) -> User:
 def delete_user(db: Session, user_id: uuid.UUID) -> None:
     user = get_user_by_id(db, user_id)
     db.delete(user)
-    db.commit()
+    try:
+        db.commit()
+    except SQLAlchemyError as exc:
+        db.rollback()
+        logger.exception(
+            "Failed to delete user",
+            extra={"user_id": str(user_id)},
+        )
+        raise DatabaseOperationException(detail="Unable to delete user") from exc
 
 
 def user_to_response(user: User) -> UserResponse:
