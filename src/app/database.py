@@ -15,7 +15,8 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 # Detect if running in Vercel/serverless environment
 IS_VERCEL = os.getenv("VERCEL") is not None
-IS_PRODUCTION = os.getenv("NODE_ENV") == "production"
+# Vercel sets VERCEL_ENV to "production" in production deployments
+IS_PRODUCTION = os.getenv("VERCEL_ENV") == "production" or IS_VERCEL
 
 if DATABASE_URL:
     if DATABASE_URL.startswith("postgresql://"):
