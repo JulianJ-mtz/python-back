@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "pip install poetry && poetry install",
+  "buildCommand": "pip install --upgrade pip poetry && poetry export -f requirements.txt --output requirements.txt --without-hashes && python -m pip install -r requirements.txt -t .python_packages/lib/python3.11/site-packages",
   "outputDirectory": ".",
   "routes": [
     {
@@ -9,6 +9,6 @@
     }
   ],
   "env": {
-    "PYTHONPATH": "/var/task"
+    "PYTHONPATH": "/var/task/.python_packages/lib/python3.11/site-packages:/var/task"
   }
 }

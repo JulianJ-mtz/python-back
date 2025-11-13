@@ -26,46 +26,62 @@ if DATABASE_URL:
     # Serverless-optimized pool configuration for Vercel/Supabase
     if IS_VERCEL or IS_PRODUCTION:
         pool_class = NullPool  # No connection pooling in serverless
-        pool_size = 1
-        max_overflow = 0
-        pool_timeout = 10
-        pool_recycle = 60
         logger.info("Using serverless database configuration (NullPool)")
+        engine_kwargs = {
+            "poolclass": pool_class,
+            "pool_pre_ping": True,
+            "echo": False,
+            "connect_args": {
+                "connect_timeout": 10,
+                "keepalives": 1,
+                "keepalives_idle": 30,
+                "keepalives_interval": 10,
+                "keepalives_count": 5,
+            },
+        }
     else:
         # Supabase-specific pool configuration for development
         pool_class = QueuePool
-        pool_size = 5
-        max_overflow = 10
-        pool_timeout = 30
-        pool_recycle = 300
         logger.info("Using Supabase database connection")
+        engine_kwargs = {
+            "poolclass": pool_class,
+            "pool_size": 5,
+            "max_overflow": 10,
+            "pool_timeout": 30,
+            "pool_recycle": 300,
+            "pool_pre_ping": True,
+            "echo": False,
+            "connect_args": {
+                "connect_timeout": 10,
+                "keepalives": 1,
+                "keepalives_idle": 30,
+                "keepalives_interval": 10,
+                "keepalives_count": 5,
+            },
+        }
 else:
     db_url = "postgresql://postgres:root@localhost:5432/py-db"
     pool_class = QueuePool
-    pool_size = 10
-    max_overflow = 20
-    pool_timeout = 30
-    pool_recycle = 3600
     logger.info("Using local PostgreSQL database")
-
-try:
-    engine = create_engine(
-        db_url,
-        poolclass=pool_class,
-        pool_size=pool_size,
-        max_overflow=max_overflow,
-        pool_timeout=pool_timeout,
-        pool_recycle=pool_recycle,
-        pool_pre_ping=True,
-        echo=False,
-        connect_args={
+    engine_kwargs = {
+        "poolclass": pool_class,
+        "pool_size": 10,
+        "max_overflow": 20,
+        "pool_timeout": 30,
+        "pool_recycle": 3600,
+        "pool_pre_ping": True,
+        "echo": False,
+        "connect_args": {
             "connect_timeout": 10,
             "keepalives": 1,
             "keepalives_idle": 30,
             "keepalives_interval": 10,
             "keepalives_count": 5,
         },
-    )
+    }
+
+try:
+    engine = create_engine(db_url, **engine_kwargs)
     logger.info("Database engine created successfully")
 except Exception as e:
     logger.error(f"Failed to create database engine: {e}")
