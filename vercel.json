@@ -1,5 +1,7 @@
 {
   "version": 2,
+  "buildCommand": "pip install poetry && poetry install",
+  "outputDirectory": ".",
   "routes": [
     {
       "src": "/(.*)",
@@ -8,5 +10,11 @@
   ],
   "env": {
     "PYTHONPATH": "/var/task"
+  },
+  "functions": {
+    "api/index.py": {
+      "memory": 512,
+      "maxDuration": 30
+    }
   }
 }
