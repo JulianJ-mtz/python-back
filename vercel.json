@@ -1,14 +1,8 @@
 {
-  "version": 2,
-  "buildCommand": "pip install --upgrade pip poetry && poetry export -f requirements.txt --output requirements.txt --without-hashes && python -m pip install -r requirements.txt -t .python_packages/lib/python3.12/site-packages",
-  "outputDirectory": ".",
-  "routes": [
+  "rewrites": [
     {
-      "src": "/(.*)",
-      "dest": "api/index.py"
+      "source": "/(.*)",
+      "destination": "/api/index"
     }
-  ],
-  "env": {
-    "PYTHONPATH": "/var/task/.python_packages/lib/python3.12/site-packages:/var/task"
-  }
+  ]
 }
