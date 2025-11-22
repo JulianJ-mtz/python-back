@@ -13,6 +13,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:4200",  # angular dev
         "http://localhost:3000",  # local frontend
+        "http://localhost:5173",  # Vite dev
         "https://clicktuki.vercel.app",  # Vercel frontend
         "https://clicktuki.com",  # production
         "https://*.vercel.app",  # allow all Vercel preview deployments
@@ -144,12 +145,8 @@ def root():
 def health():
     """Health check endpoint with database connectivity test."""
     from .database import test_connection
-    
+
     db_status = "connected" if test_connection() else "disconnected"
     overall_status = "healthy" if db_status == "connected" else "unhealthy"
-    
-    return {
-        "status": overall_status,
-        "database": db_status,
-        "api": "ok"
-    }
+
+    return {"status": overall_status, "database": db_status, "api": "ok"}
